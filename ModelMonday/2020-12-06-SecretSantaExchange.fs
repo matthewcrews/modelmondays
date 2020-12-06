@@ -86,17 +86,20 @@ module SecretSantaExchange =
                 { Reindeer = Reindeer "Rudolph"; PreviousReceivers = [ Receiver (Reindeer "Blitzen")]}
                 { Reindeer = Reindeer "Dasher";  PreviousReceivers = [ Receiver (Reindeer "Vixen")]}
                 { Reindeer = Reindeer "Dancer";  PreviousReceivers = [ Receiver (Reindeer "Rudolph")]}
-                { Reindeer = Reindeer "Prancer"; PreviousReceivers = [ Receiver (Reindeer "Prancer")]}
+                { Reindeer = Reindeer "Prancer"; PreviousReceivers = [ Receiver (Reindeer "Cupid")]}
                 { Reindeer = Reindeer "Vixen";   PreviousReceivers = [ Receiver (Reindeer "Dancer")]}
                 { Reindeer = Reindeer "Comet";   PreviousReceivers = [ Receiver (Reindeer "Dasher")]}
                 { Reindeer = Reindeer "Cupid";   PreviousReceivers = [ Receiver (Reindeer "Donner")]}
                 { Reindeer = Reindeer "Donner";  PreviousReceivers = [ Receiver (Reindeer "Comet")]}
-                { Reindeer = Reindeer "Blitzen"; PreviousReceivers = [ Receiver (Reindeer "Cupid")]}
+                { Reindeer = Reindeer "Blitzen"; PreviousReceivers = [ Receiver (Reindeer "Prancer")]}
             ]
 
-        let pairings = findAssignments santas
+        let findResult = findAssignments santas
 
-        match pairings with
-        | Ok p -> printfn "%A" p
+        match findResult with
+        | Ok pairings -> 
+            printfn "And the Secret Santa Pairings are!"
+            for (Giver (Reindeer g), Receiver (Reindeer r)) in pairings do
+                printfn $"{g}\t-> {r}"
         | Error _ -> printfn "No Christmas this year 😞"
 
