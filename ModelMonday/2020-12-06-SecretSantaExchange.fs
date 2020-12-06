@@ -36,7 +36,7 @@ module SecretSantaExchange =
         
         let possiblePairings =
             seq { for giver in reindeer do
-                    // We only want pairings with different people
+                    // We only want pairings with different reindeer
                     for receiver in reindeer.Remove giver ->
                         (Giver giver, Receiver receiver)
             }
