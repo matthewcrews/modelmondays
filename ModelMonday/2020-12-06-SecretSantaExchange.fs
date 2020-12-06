@@ -3,6 +3,7 @@
 open Flips
 open Flips.Types
 open Flips.SliceMap
+open Spectre.Console
 
 module SecretSantaExchange =
 
@@ -79,6 +80,18 @@ module SecretSantaExchange =
             Result.Ok selectedPairings
         | _ -> Result.Error "Unable to find pairings"
 
+    
+    let prettyPrintResults (pairings: seq<Giver * Receiver>) =
+        let table = Table()
+        table.AddColumn("Giver") |> ignore
+        table.AddColumn("Receiver") |> ignore
+
+        for (Giver (Reindeer g), Receiver (Reindeer r)) in pairings do
+            table.AddRow(g, r) |> ignore
+
+        AnsiConsole.Render(table)
+
+
     let example () =
 
         let santas =
@@ -97,9 +110,6 @@ module SecretSantaExchange =
         let findResult = findAssignments santas
 
         match findResult with
-        | Ok pairings -> 
-            printfn "And the Secret Santa Pairings are!"
-            for (Giver (Reindeer g), Receiver (Reindeer r)) in pairings do
-                printfn $"{g}\t-> {r}"
+        | Ok pairings -> prettyPrintResults pairings
         | Error _ -> printfn "No Christmas this year 😞"
 
