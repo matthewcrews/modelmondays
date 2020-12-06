@@ -9,4 +9,7 @@ let main argv =
 
     SecretSantaExchange.example ()
 
+
+    printfn "Press any key to exit..."
+    Console.ReadKey() |> ignore 
     0 // return an integer exit code
