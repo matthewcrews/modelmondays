@@ -34,7 +34,7 @@ module SecretSantaExchange =
             ] |> List.concat
             |> SMap2
         
-        let possiblePairings =
+        let possibleAssignments =
             seq { for giver in reindeer do
                     // We only want pairings with different reindeer
                     for receiver in reindeer.Remove giver ->
@@ -43,7 +43,7 @@ module SecretSantaExchange =
 
         let assignDecisions =
             DecisionBuilder "Assignment" {
-                for pairing in possiblePairings ->
+                for pairing in possibleAssignments ->
                     Boolean
             } |> SMap2
 
@@ -111,5 +111,5 @@ module SecretSantaExchange =
 
         match findResult with
         | Ok pairings -> prettyPrintResults pairings
-        | Error _ -> printfn "No Christmas this year 😞"
+        | Error _ -> printfn "No Christmas this year :("
 
