@@ -8,6 +8,8 @@ open Flips
 open Flips.Types
 open Flips.SliceMap
 open Flips.UnitsOfMeasure
+open Spectre.Console
+
 
 type Food = Food of string
 type Increment = Increment of int
@@ -17,29 +19,19 @@ type DemandRate = DemandRate of float
 [<Measure>] type gm
 [<Measure>] type item
 
+type AnalysisResult = {
+    BurgerQuantity : float<item>
+    PizzaQuantity : float<item>
+    TacoQuantity : float<item>
+    StorageUtilization : float
+    FridgeUtilization : float
+    WeightUtilization : float
+    RevenueMean : float<USD>
+    RevenueVariance : float<USD^2>
+    RevenueStdDev : float<USD>
+}
 
 module Simulation =
-
-    //type Parameters = {
-    //    BurgerDemand : float
-    //    PizzaDemand : float
-    //    TacoDemand : float
-    //    BurgerRevenue : float<USD>
-    //    PizzaRevenue : float<USD>
-    //    TacoRevenue : float<USD>
-    //}
-
-    //type Plan = {
-    //    BurgerQuantity : float
-    //    PizzaQuantity : float
-    //    TacoQuantity : float
-    //}
-
-    type Evaluation = {
-        RevenueMean : float<USD>
-        RevenueVariance : float<USD^2>
-        RevenueStdDev : float<USD>
-    }
 
     let sample 
         (foodDemands: seq<Food * DemandRate>)
@@ -72,13 +64,7 @@ module Simulation =
                         |> float
                 } |> Array.ofSeq
 
-            let stats = DescriptiveStatistics samples
-
-            {
-                RevenueMean = stats.Mean * 1.0<USD>
-                RevenueVariance = stats.Variance * 1.0<USD^2>
-                RevenueStdDev = stats.StandardDeviation * 1.0<USD>
-            }
+            DescriptiveStatistics samples
 
 
 module PlanningModel =
@@ -225,17 +211,20 @@ module Example =
             pizzaQuantity * weight.[pizza] + 
             tacoQuantity * weight.[taco]
 
-        printfn "Burger Quantity: %A" burgerQuantity
-        printfn "Pizza Quantity: %A" pizzaQuantity
-        printfn "Taco Quantity: %A" tacoQuantity
-        printfn "Storage Utilization: %A" (storageUsage / maxStorage)
-        printfn "Fridge Utilization: %A" (fridgeUsage / maxFridge)
-        printfn "Weight Utilization: %A" (weightUsage / maxWeight)
-
         let rng = System.Random ()
-        let evaluation = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+        let stats = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
 
-        printfn "%A" evaluation
+        {
+            BurgerQuantity = burgerQuantity
+            PizzaQuantity = pizzaQuantity
+            TacoQuantity = tacoQuantity
+            StorageUtilization = (storageUsage / maxStorage)
+            FridgeUtilization = (fridgeUsage / maxFridge)
+            WeightUtilization = (weightUsage / maxWeight)
+            RevenueMean = stats.Mean * 1.0<USD>
+            RevenueVariance = stats.Variance * 1.0<USD^2>
+            RevenueStdDev = stats.StandardDeviation * 1.0<USD>
+        }
 
     let optimizationRun () =
 
@@ -257,17 +246,21 @@ module Example =
             let burgerQuantity = Solution.evaluate solution (sum packDecisions.[burger, All])
             let pizzaQuantity = Solution.evaluate solution (sum packDecisions.[pizza, All])
             let tacoQuantity = Solution.evaluate solution (sum packDecisions.[taco, All])
-            let storageUsage = Solution.evaluate solution (sum (storage .* packDecisions))
-            let fridgeUsage = Solution.evaluate solution (sum (fridgeSpace .* packDecisions))
-            let weightUsage = Solution.evaluate solution (sum (weight .* packDecisions))
 
-
-            printfn "Burger Quantity: %A" burgerQuantity
-            printfn "Pizza Quantity: %A" pizzaQuantity
-            printfn "Taco Quantity: %A" tacoQuantity
-            printfn "Storage Utilization: %A" (storageUsage / maxStorage)
-            printfn "Fridge Utilization: %A" (fridgeUsage / maxFridge)
-            printfn "Weight Utilization: %A" (weightUsage / maxWeight)
+            let storageUsage = 
+                burgerQuantity * storage.[burger] + 
+                pizzaQuantity * storage.[pizza] + 
+                tacoQuantity * storage.[taco]
+            
+            let fridgeUsage =
+                burgerQuantity * fridgeSpace.[burger] + 
+                pizzaQuantity * fridgeSpace.[pizza] + 
+                tacoQuantity * fridgeSpace.[taco]
+            
+            let weightUsage = 
+                burgerQuantity * weight.[burger] + 
+                pizzaQuantity * weight.[pizza] + 
+                tacoQuantity * weight.[taco]
 
             let plan =
                 [
@@ -277,8 +270,42 @@ module Example =
                 ] |> Map
 
             let rng = System.Random ()
-            let evaluation = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+            let stats = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
             
-            printfn "%A" evaluation
+            {
+                BurgerQuantity = burgerQuantity
+                PizzaQuantity = pizzaQuantity
+                TacoQuantity = tacoQuantity
+                StorageUtilization = (storageUsage / maxStorage)
+                FridgeUtilization = (fridgeUsage / maxFridge)
+                WeightUtilization = (weightUsage / maxWeight)
+                RevenueMean = stats.Mean * 1.0<USD>
+                RevenueVariance = stats.Variance * 1.0<USD^2>
+                RevenueStdDev = stats.StandardDeviation * 1.0<USD>
+            }
 
-        | _ -> printfn "Failed to solve"
+        | _ -> failwith "Failed to solve"
+
+    let run () =
+
+        let hueristicResult = simpleHeuristicRun ()
+        let optimizationResult = optimizationRun ()
+
+        let table = Table()
+        table.AddColumn("Metric") |> ignore
+        table.AddColumn("Heuristic") |> ignore
+        table.AddColumn("Optimization") |> ignore
+
+        table.AddRow("Burgers", $"{hueristicResult.BurgerQuantity}", $"{optimizationResult.BurgerQuantity}") |> ignore
+        table.AddRow("Pizza", $"{hueristicResult.PizzaQuantity}", $"{optimizationResult.PizzaQuantity}") |> ignore
+        table.AddRow("Taco", $"{hueristicResult.TacoQuantity}", $"{optimizationResult.TacoQuantity}") |> ignore
+        
+        table.AddRow("Storage Usage", $"%.2f{hueristicResult.StorageUtilization * 100.0}%%", $"%.2f{optimizationResult.StorageUtilization * 100.0}%%") |> ignore
+        table.AddRow("Fridge Usage", $"%.2f{hueristicResult.FridgeUtilization * 100.0}%%", $"%.2f{optimizationResult.FridgeUtilization * 100.0}%%") |> ignore
+        table.AddRow("Weight Usage", $"%.2f{hueristicResult.WeightUtilization * 100.0}%%", $"%.2f{optimizationResult.WeightUtilization * 100.0}%%") |> ignore
+
+        table.AddRow("Revenue Mean", $"%.2f{hueristicResult.RevenueMean}", $"%.2f{optimizationResult.RevenueMean}") |> ignore
+        table.AddRow("Revenue Variance", $"%.2f{hueristicResult.RevenueVariance}", $"%.2f{optimizationResult.RevenueVariance}") |> ignore
+        table.AddRow("Revenue StdDev", $"%.2f{hueristicResult.RevenueStdDev}", $"%.2f{optimizationResult.RevenueStdDev}") |> ignore
+
+        AnsiConsole.Render(table)
