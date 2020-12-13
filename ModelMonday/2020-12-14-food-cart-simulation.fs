@@ -183,7 +183,7 @@ module Example =
     let maxWeight = 1_000_000.0<gm>
     let maxStorage = 3_000_000.0<cm^3>
     let maxFridge = 2_000_000.0<cm^3>
-    let numberOfSimulations = 100_000
+    let numberOfSimulations = 1_000_000
 
     let simpleHeuristicRun () =
 
@@ -209,6 +209,28 @@ module Example =
                 pizza, pizzaQuantity
                 taco, tacoQuantity
             ] |> Map
+
+        let storageUsage = 
+            burgerQuantity * storage.[burger] + 
+            pizzaQuantity * storage.[pizza] + 
+            tacoQuantity * storage.[taco]
+        
+        let fridgeUsage =
+            burgerQuantity * fridgeSpace.[burger] + 
+            pizzaQuantity * fridgeSpace.[pizza] + 
+            tacoQuantity * fridgeSpace.[taco]
+        
+        let weightUsage = 
+            burgerQuantity * weight.[burger] + 
+            pizzaQuantity * weight.[pizza] + 
+            tacoQuantity * weight.[taco]
+
+        printfn "Burger Quantity: %A" burgerQuantity
+        printfn "Pizza Quantity: %A" pizzaQuantity
+        printfn "Taco Quantity: %A" tacoQuantity
+        printfn "Storage Utilization: %A" (storageUsage / maxStorage)
+        printfn "Fridge Utilization: %A" (fridgeUsage / maxFridge)
+        printfn "Weight Utilization: %A" (weightUsage / maxWeight)
 
         let rng = System.Random ()
         let evaluation = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
