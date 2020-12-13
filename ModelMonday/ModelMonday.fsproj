@@ -11,12 +11,14 @@
 
   <ItemGroup>
     <Compile Include="2020-12-06-SecretSantaExchange.fs" />
+    <Compile Include="2020-12-14-food-cart-simulation.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Flips" Version="2.4.2" />
-    <PackageReference Include="Spectre.Console" Version="0.32.1" />
+    <PackageReference Include="MathNet.Numerics.FSharp" Version="4.12.0" />
+    <PackageReference Include="Spectre.Console" Version="0.33.0" />
   </ItemGroup>
 
 </Project>
