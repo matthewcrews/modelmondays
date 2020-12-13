@@ -129,6 +129,10 @@ module PlanningModel =
 
 module Example =
 
+    let floor (x: float<'Measure>) =
+        Math.Floor (float x)
+        |> FSharp.Core.LanguagePrimitives.FloatWithMeasure<'Measure>
+
     let burger = Food "Burger"
     let pizza = Food "Pizza"
     let taco = Food "Taco"
@@ -183,11 +187,27 @@ module Example =
 
     let simpleHeuristicRun () =
 
+        let pizzaQuantity = 900.0<item>
+
+        let tacoQuantity =
+            List.min [
+                (maxStorage - (pizzaQuantity * storage.[pizza])) / storage.[taco]
+                (maxFridge - (pizzaQuantity * fridgeSpace.[pizza])) / fridgeSpace.[taco]
+                (maxWeight - (pizzaQuantity * weight.[pizza])) / weight.[taco]
+            ] |> floor
+
+        let burgerQuantity =
+            List.min [
+                (maxStorage - (pizzaQuantity * storage.[pizza]) - (tacoQuantity * storage.[taco])) / storage.[taco]
+                (maxFridge - (pizzaQuantity * fridgeSpace.[pizza]) - (tacoQuantity * fridgeSpace.[taco])) / fridgeSpace.[taco]
+                (maxWeight - (pizzaQuantity * weight.[pizza]) - (tacoQuantity * weight.[taco])) / weight.[taco]
+            ] |> floor
+
         let plan =
             [
-                burger, 10.0<item>
-                pizza, 10.0<item>
-                taco, 10.0<item>
+                burger, burgerQuantity
+                pizza, pizzaQuantity
+                taco, tacoQuantity
             ] |> Map
 
         let rng = System.Random ()
