@@ -9,7 +9,7 @@ let main argv =
 
     //SecretSantaExchange.example ()
 
-    FoodCart.Example.run ()
+    FoodCart.Example.optimizationRun ()
 
     printfn "Press any key to exit..."
     Console.ReadKey() |> ignore 

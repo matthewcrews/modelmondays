@@ -90,7 +90,7 @@ module PlanningModel =
         seq {
             for (food, DemandRate demandRate) in foodDemands do
                 for i in 1..maxItems ->
-                    let probability =  1.0 - (Poisson.CDF (demandRate, (float i)))
+                    let probability =  1.0 - (Poisson.CDF (demandRate - 1.0, (float i)))
                     (food, Increment i), probability
         } |> SMap2
 
@@ -149,38 +149,53 @@ module Example =
 
     let storage =
         [
-            burger, 30.0<cm^3/item>
-            pizza,  45.0<cm^3/item>
-            taco,   20.5<cm^3/item>
+            burger, 800.0<cm^3/item>
+            pizza,  950.0<cm^3/item>
+            taco,   7800.0<cm^3/item>
         ] |> SMap
 
     let fridgeSpace =
         [
-            burger, 25.0<cm^3/item>
-            pizza,  30.0<cm^3/item>
-            taco,   15.0<cm^3/item>
+            burger, 700.0<cm^3/item>
+            pizza,  890.0<cm^3/item>
+            taco,   800.0<cm^3/item>
         ] |> SMap
 
     let weight =
         [
-            burger, 300.0<gm/item>
-            pizza,  350.0<gm/item>
-            taco,   280.0<gm/item>
+            burger, 650.0<gm/item>
+            pizza,  700.0<gm/item>
+            taco,   600.0<gm/item>
         ] |> SMap
 
     let demandRates =
         [
-            burger, DemandRate 50.0
-            pizza,  DemandRate 60.0
-            taco,   DemandRate 45.0
+            burger, DemandRate 600.0
+            pizza,  DemandRate 900.0
+            taco,   DemandRate 700.0
         ]
 
-    let run () =
+    let maxItems = 1_000
+    let maxWeight = 1_000_000.0<gm>
+    let maxStorage = 3_000_000.0<cm^3>
+    let maxFridge = 2_000_000.0<cm^3>
+    let numberOfSimulations = 100_000
 
-        let maxItems = 100
-        let maxWeight = 1_000_000.0<gm>
-        let maxStorage = 3_000_000.0<cm^3>
-        let maxFridge = 2_000_000.0<cm^3>
+    let simpleHeuristicRun () =
+
+        let plan =
+            [
+                burger, 10.0<item>
+                pizza, 10.0<item>
+                taco, 10.0<item>
+            ] |> Map
+
+        let rng = System.Random ()
+        let evaluation = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+
+        printfn "%A" evaluation
+
+    let optimizationRun () =
 
         let incrementProbabilities = PlanningModel.createIncrementProbability demandRates maxItems
 
@@ -200,30 +215,28 @@ module Example =
             let burgerQuantity = Solution.evaluate solution (sum packDecisions.[burger, All])
             let pizzaQuantity = Solution.evaluate solution (sum packDecisions.[pizza, All])
             let tacoQuantity = Solution.evaluate solution (sum packDecisions.[taco, All])
+            let storageUsage = Solution.evaluate solution (sum (storage .* packDecisions))
+            let fridgeUsage = Solution.evaluate solution (sum (fridgeSpace .* packDecisions))
+            let weightUsage = Solution.evaluate solution (sum (weight .* packDecisions))
+
+
+            printfn "Burger Quantity: %A" burgerQuantity
+            printfn "Pizza Quantity: %A" pizzaQuantity
+            printfn "Taco Quantity: %A" tacoQuantity
+            printfn "Storage Utilization: %A" (storageUsage / maxStorage)
+            printfn "Fridge Utilization: %A" (fridgeUsage / maxFridge)
+            printfn "Weight Utilization: %A" (weightUsage / maxWeight)
+
             let plan =
                 [
                     burger, burgerQuantity
                     pizza, pizzaQuantity
                     taco, tacoQuantity
                 ] |> Map
+
             let rng = System.Random ()
-            let evaluation = Simulation.Plan.evalute demandRates revenue plan rng 10_000
+            let evaluation = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+            
             printfn "%A" evaluation
 
         | _ -> printfn "Failed to solve"
-
-
-            //let rng = System.Random ()
-
-            //let plan =
-            //    [
-            //        burger, 10.0<item>
-            //        pizza, 10.0<item>
-            //        taco, 10.0<item>
-            //    ] |> Map
-
-            //let x = Simulation.Plan.evalute demandRates revenue plan rng 10_000
-
-            //printfn "%A" x
-
-
