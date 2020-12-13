@@ -25,18 +25,18 @@ module Simulation =
     }
 
     type Parameters = {
-        TacoDemand : float
         BurgerDemand : float
         PizzaDemand : float
-        TacoRevenue : float<USD>
+        TacoDemand : float
         BurgerRevenue : float<USD>
         PizzaRevenue : float<USD>
+        TacoRevenue : float<USD>
     }
 
     type Plan = {
-        TacoQuantity : float
         BurgerQuantity : float
         PizzaQuantity : float
+        TacoQuantity : float
     }
 
     type Evaluation = {
@@ -136,6 +136,8 @@ module PlanningModel =
 
 module Example =
 
+    open Simulation
+
     let foods =
         [
             Food "Burger"
@@ -194,16 +196,36 @@ module Example =
 
     let planModel = PlanningModel.create revenue storage fridgeSpace weight incrementProbabilities packDecisions maxStorage maxWeight maxFridge
 
-    let result = Solver.solve Settings.basic planModel
+    //let result = Solver.solve Settings.basic planModel
 
-    match result with
-    | Optimal solution ->
-        let burgerQuantity = Solution.evaluate solution (sum packDecisions.[Food "Burger", All])
-        let pizzaQuantity = Solution.evaluate solution (sum packDecisions.[Food "Pizza", All])
-        let tacoQuantity = Solution.evaluate solution (sum packDecisions.[Food "Taco", All])
+    //match result with
+    //| Optimal solution ->
+    //    let burgerQuantity = Solution.evaluate solution (sum packDecisions.[Food "Burger", All])
+    //    let pizzaQuantity = Solution.evaluate solution (sum packDecisions.[Food "Pizza", All])
+    //    let tacoQuantity = Solution.evaluate solution (sum packDecisions.[Food "Taco", All])
 
 
 
-    | _ -> printfn "Failed to solve"
+    //| _ -> printfn "Failed to solve"
+    let rng = System.Random ()
+    let parameters = {
+        BurgerDemand = 10.0
+        PizzaDemand = 10.0
+        TacoDemand = 10.0
+        BurgerRevenue = 1.0<USD>
+        PizzaRevenue = 1.0<USD>
+        TacoRevenue = 1.0<USD>
+    }
+
+    let plan = {
+        BurgerQuantity = 10.0
+        PizzaQuantity = 10.0
+        TacoQuantity = 10.0
+    }
+
+
+    let x = Simulation.Plan.evalute parameters plan rng 100
+
+    printfn "%A" x
 
 
