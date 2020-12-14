@@ -132,29 +132,29 @@ module Example =
 
     let revenue = 
         [
-            burger, 1.0<USD/item>
-            pizza,  2.0<USD/item>
-            taco,   1.5<USD/item>
+            burger, 1.3<USD/item>
+            pizza,  1.6<USD/item>
+            taco,   1.4<USD/item>
         ] |> SMap
 
     let storage =
         [
-            burger, 800.0<cm^3/item>
+            burger, 700.0<cm^3/item>
             pizza,  950.0<cm^3/item>
-            taco,   7800.0<cm^3/item>
+            taco,   800.0<cm^3/item>
         ] |> SMap
 
     let fridgeSpace =
         [
-            burger, 700.0<cm^3/item>
-            pizza,  890.0<cm^3/item>
-            taco,   800.0<cm^3/item>
+            burger, 900.0<cm^3/item>
+            pizza,  940.0<cm^3/item>
+            taco,   850.0<cm^3/item>
         ] |> SMap
 
     let weight =
         [
-            burger, 650.0<gm/item>
-            pizza,  700.0<gm/item>
+            burger, 550.0<gm/item>
+            pizza,  800.0<gm/item>
             taco,   600.0<gm/item>
         ] |> SMap
 
