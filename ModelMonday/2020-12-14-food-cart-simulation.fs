@@ -17,12 +17,12 @@ type DemandRate = DemandRate of float
 [<Measure>] type USD
 [<Measure>] type cm
 [<Measure>] type gm
-[<Measure>] type item
+[<Measure>] type serving
 
 type AnalysisResult = {
-    BurgerQuantity : float<item>
-    PizzaQuantity : float<item>
-    TacoQuantity : float<item>
+    BurgerQuantity : float<serving>
+    PizzaQuantity : float<serving>
+    TacoQuantity : float<serving>
     StorageUtilization : float
     FridgeUtilization : float
     WeightUtilization : float
@@ -35,36 +35,36 @@ module Simulation =
 
     let sample 
         (foodDemands: seq<Food * DemandRate>)
-        (revenue: SMap<Food, float<USD/item>>)
-        (plan: Map<Food, float<item>>)
+        (revenue: SMap<Food, float<USD/serving>>)
+        (plan: Map<Food, float<serving>>)
         (rng: System.Random) =
         
         let evaluteSoldQuantity planAmount (DemandRate demandRate) rng =
+            // Generate a random sample from the Poisson distribution and take the lesser
+            // of the planned inventory or of the random Demand value that was generated
             let actualQuantity = Math.Min (float planAmount, Sample.poisson demandRate rng |> float)
-            actualQuantity * 1.0<item>
+            // Multiply by 1.0<serving> to get the correct units on the result
+            actualQuantity * 1.0<serving>
 
         foodDemands
         |> Seq.map (fun (food, demandRate) -> food, (evaluteSoldQuantity plan.[food] demandRate rng))
         |> Seq.sumBy (fun (food, soldQuantity) -> soldQuantity * revenue.[food])
 
+    let evalute 
+        (foodDemands: seq<Food * DemandRate>)
+        (revenue: SMap<Food, float<USD/serving>>)
+        (plan: Map<Food, float<serving>>)
+        (rng: System.Random)
+        (numberSamples: int) =
 
-    module Plan =
+        let samples =
+            seq {
+                for _ in 1..numberSamples ->
+                    sample foodDemands revenue plan rng
+                    |> float
+            } |> Array.ofSeq
 
-        let evalute 
-            (foodDemands: seq<Food * DemandRate>)
-            (revenue: SMap<Food, float<USD/item>>)
-            (plan: Map<Food, float<item>>)
-            (rng: System.Random)
-            (numberSamples: int) =
-
-            let samples =
-                seq {
-                    for _ in 1..numberSamples ->
-                        sample foodDemands revenue plan rng
-                        |> float
-                } |> Array.ofSeq
-
-            DescriptiveStatistics samples
+        DescriptiveStatistics samples
 
 
 module PlanningModel =
@@ -81,12 +81,12 @@ module PlanningModel =
         } |> SMap2
 
     let create 
-        (revenue: SMap<Food, float<USD/item>>)
-        (storage: SMap<Food, float<cm^3/item>>)
-        (fridgeSpace: SMap<Food, float<cm^3/item>>)
-        (weight: SMap<Food, float<gm/item>>)
+        (revenue: SMap<Food, float<USD/serving>>)
+        (storage: SMap<Food, float<cm^3/serving>>)
+        (fridgeSpace: SMap<Food, float<cm^3/serving>>)
+        (weight: SMap<Food, float<gm/serving>>)
         (incrementProbability: SMap2<Food, Increment, float>)
-        (packDecision: SMap2<Food, Increment, Decision<item>>)
+        (packDecision: SMap2<Food, Increment, Decision<serving>>)
         (maxStorage: float<cm^3>)
         (maxWeight: float<gm>)
         (maxFridgeSpace: float<cm^3>) =
@@ -132,30 +132,30 @@ module Example =
 
     let revenue = 
         [
-            burger, 1.3<USD/item>
-            pizza,  1.6<USD/item>
-            taco,   1.4<USD/item>
+            burger, 1.3<USD/serving>
+            pizza,  1.6<USD/serving>
+            taco,   1.4<USD/serving>
         ] |> SMap
 
     let storage =
         [
-            burger, 700.0<cm^3/item>
-            pizza,  950.0<cm^3/item>
-            taco,   800.0<cm^3/item>
+            burger, 700.0<cm^3/serving>
+            pizza,  950.0<cm^3/serving>
+            taco,   800.0<cm^3/serving>
         ] |> SMap
 
     let fridgeSpace =
         [
-            burger, 900.0<cm^3/item>
-            pizza,  940.0<cm^3/item>
-            taco,   850.0<cm^3/item>
+            burger, 900.0<cm^3/serving>
+            pizza,  940.0<cm^3/serving>
+            taco,   850.0<cm^3/serving>
         ] |> SMap
 
     let weight =
         [
-            burger, 550.0<gm/item>
-            pizza,  800.0<gm/item>
-            taco,   600.0<gm/item>
+            burger, 550.0<gm/serving>
+            pizza,  800.0<gm/serving>
+            taco,   600.0<gm/serving>
         ] |> SMap
 
     let demandRates =
@@ -173,7 +173,7 @@ module Example =
 
     let simpleHeuristicRun () =
 
-        let pizzaQuantity = 900.0<item>
+        let pizzaQuantity = 900.0<serving>
 
         let tacoQuantity =
             List.min [
@@ -212,7 +212,7 @@ module Example =
             tacoQuantity * weight.[taco]
 
         let rng = System.Random ()
-        let stats = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+        let stats = Simulation.evalute demandRates revenue plan rng numberOfSimulations
 
         {
             BurgerQuantity = burgerQuantity
@@ -231,7 +231,7 @@ module Example =
         let incrementProbabilities = PlanningModel.createIncrementProbability demandRates maxItems
 
         let packDecisions =
-            DecisionBuilder<item> "Pack" {
+            DecisionBuilder<serving> "Pack" {
                 for food in foods do
                     for increment in ([1..maxItems] |> List.map Increment) ->
                         Boolean
@@ -270,7 +270,7 @@ module Example =
                 ] |> Map
 
             let rng = System.Random ()
-            let stats = Simulation.Plan.evalute demandRates revenue plan rng numberOfSimulations
+            let stats = Simulation.evalute demandRates revenue plan rng numberOfSimulations
             
             {
                 BurgerQuantity = burgerQuantity
