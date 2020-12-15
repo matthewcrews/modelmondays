@@ -55,9 +55,6 @@ module Simulation =
         DescriptiveStatistics samples
 
 
-
-
-
 module Example =
 
     // A function to call Math.Floor on floats with Units of Measure
