@@ -15,8 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="2020-12-14-FoodCartSeries\2020-12-14-Part1.fs" />
+    <Compile Include="2020-12-14-FoodCartSeries\2020-12-17-Part2.fs" />
     <Compile Include="2020-12-06-SecretSantaExchange.fs" />
-    <Compile Include="2020-12-14-food-cart-simulation.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

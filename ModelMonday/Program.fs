@@ -8,7 +8,8 @@ let main argv =
     printfn "Welcome to Model Mondays!"
 
     //SecretSantaExchange.example ()
-    FoodCart.Example.run ()
+    ModelMonday.FoodCart.Part1.Example.run ()
+    //FoodCart.Example.run ()
 
     printfn "Press any key to exit..."
     Console.ReadKey() |> ignore 
