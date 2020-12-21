@@ -1,4 +1,4 @@
-﻿namespace ModelMonday.FoodCart
+﻿namespace ModelMonday.FoodCart.Part2
 
 
 open System
@@ -12,7 +12,7 @@ open Spectre.Console
 
 
 type Food = Food of string
-type Increment = Increment of int
+type NthItem = NthItem of int
 type DemandRate = DemandRate of float
 [<Measure>] type USD
 [<Measure>] type cm
@@ -29,6 +29,7 @@ type AnalysisResult = {
     RevenueMean : float<USD>
     RevenueVariance : float<USD^2>
     RevenueStdDev : float<USD>
+    ConfidenceInterval_99 : float<USD>
 }
 
 module Simulation =
@@ -77,7 +78,7 @@ module PlanningModel =
             for (food, DemandRate demandRate) in foodDemands do
                 for i in 1..maxItems ->
                     let probability =  1.0 - (Poisson.CDF (demandRate - 1.0, (float i)))
-                    (food, Increment i), probability
+                    (food, NthItem i), probability
         } |> SMap2
 
     let create 
@@ -85,8 +86,8 @@ module PlanningModel =
         (storage: SMap<Food, float<cm^3/serving>>)
         (fridgeSpace: SMap<Food, float<cm^3/serving>>)
         (weight: SMap<Food, float<gm/serving>>)
-        (incrementProbability: SMap2<Food, Increment, float>)
-        (packDecision: SMap2<Food, Increment, Decision<serving>>)
+        (incrementProbability: SMap2<Food, NthItem, float>)
+        (packDecision: SMap2<Food, NthItem, Decision<serving>>)
         (maxStorage: float<cm^3>)
         (maxWeight: float<gm>)
         (maxFridgeSpace: float<cm^3>) =
@@ -224,6 +225,7 @@ module Example =
             RevenueMean = stats.Mean * 1.0<USD>
             RevenueVariance = stats.Variance * 1.0<USD^2>
             RevenueStdDev = stats.StandardDeviation * 1.0<USD>
+            ConfidenceInterval_99 = 2.567 * (stats.StandardDeviation / (Math.Sqrt (float stats.Count))) * 1.0<USD>
         }
 
     let optimizationRun () =
@@ -233,7 +235,7 @@ module Example =
         let packDecisions =
             DecisionBuilder<serving> "Pack" {
                 for food in foods do
-                    for increment in ([1..maxItems] |> List.map Increment) ->
+                    for increment in ([1..maxItems] |> List.map NthItem) ->
                         Boolean
             } |> SMap2
 
@@ -271,7 +273,6 @@ module Example =
 
             let rng = System.Random ()
             let stats = Simulation.evalute demandRates revenue plan rng numberOfSimulations
-            
             {
                 BurgerQuantity = burgerQuantity
                 PizzaQuantity = pizzaQuantity
@@ -282,6 +283,7 @@ module Example =
                 RevenueMean = stats.Mean * 1.0<USD>
                 RevenueVariance = stats.Variance * 1.0<USD^2>
                 RevenueStdDev = stats.StandardDeviation * 1.0<USD>
+                ConfidenceInterval_99 = 2.567 * (stats.StandardDeviation / (Math.Sqrt (float stats.Count))) * 1.0<USD>
             }
 
         | _ -> failwith "Failed to solve"
@@ -304,8 +306,10 @@ module Example =
         table.AddRow("Fridge Usage", $"%.2f{hueristicResult.FridgeUtilization * 100.0}%%", $"%.2f{optimizationResult.FridgeUtilization * 100.0}%%") |> ignore
         table.AddRow("Weight Usage", $"%.2f{hueristicResult.WeightUtilization * 100.0}%%", $"%.2f{optimizationResult.WeightUtilization * 100.0}%%") |> ignore
 
-        table.AddRow("Revenue Mean", $"%.2f{hueristicResult.RevenueMean}", $"%.2f{optimizationResult.RevenueMean}") |> ignore
+        table.AddRow("Revenue Mean ± (99% CI)", $"%.2f{hueristicResult.RevenueMean} ± %.2f{hueristicResult.ConfidenceInterval_99}", $"%.2f{optimizationResult.RevenueMean} ± %.2f{optimizationResult.ConfidenceInterval_99}") |> ignore
         table.AddRow("Revenue Variance", $"%.2f{hueristicResult.RevenueVariance}", $"%.2f{optimizationResult.RevenueVariance}") |> ignore
         table.AddRow("Revenue StdDev", $"%.2f{hueristicResult.RevenueStdDev}", $"%.2f{optimizationResult.RevenueStdDev}") |> ignore
+
+        
 
         AnsiConsole.Render(table)
