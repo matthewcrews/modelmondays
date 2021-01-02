@@ -71,8 +71,7 @@ module Types =
 
     type DemandSimulationResult = {
         Day : Day
-        Temperature : Temperature
-        Condition : Condition
+        Weather : Weather
         Demand : Demand
     }
 
@@ -94,15 +93,11 @@ module Types =
         [<LoadColumn(3); ColumnName("Label")>]
         Demand : single
     }
-    
-    type TemperatureModel = {
-        Coefficient : float
-        Intercept : float
-    }
 
     type DemandModelParameters = {
+        BaselineDemand : float
+        TemperatureCoefficient : float
         ConditionOffsets : Map<Condition, float>
-        TemperatureModel : TemperatureModel
     }
 
     [<CLIMutable>]
@@ -179,10 +174,10 @@ module DemandSimulationRecord =
                 let (Day d) = d.Day
                 d
             Temperature = 
-                let (Temperature t) = d.Temperature
+                let (Temperature t) = d.Weather.Temperature
                 t
             Condition = 
-                match d.Condition with
+                match d.Weather.Condition with
                 | Sunny -> "Sunny"
                 | Cloudy -> "Cloudy"
                 | Rainy -> "Rainy"
@@ -203,16 +198,17 @@ module DemandSimulationResult =
     let create (day: Day) (weather: Weather) (demand: Demand) : DemandSimulationResult =
         {
             Day = day
-            Temperature = weather.Temperature
-            Condition = weather.Condition
+            Weather = weather
             Demand = demand
         }
 
     let ofDemandSimulationRecord (record: DemandSimulationRecord) : DemandSimulationResult =
         {
             Day = Day record.Day
-            Temperature = Temperature record.Temperature
-            Condition = Condition.ofString record.Condition
+            Weather = {
+                Temperature = Temperature record.Temperature
+                Condition = Condition.ofString record.Condition
+            }
             Demand = Demand (record.Demand * 1.0<serving>)
         }
 
@@ -251,9 +247,6 @@ module Simulation =
 
     open System
     open MathNet.Numerics.Distributions
-    open MathNet.Numerics.Statistics
-    open Spectre.Console
-    open FileHelpers
     open Types
 
 
@@ -266,7 +259,7 @@ module Simulation =
                 2, Rainy
             ] |> Map
 
-        let sample (rng: System.Random) =
+        let sample (rng: Random) =
             conditions.[rng.Next(0, 2)]
 
 
@@ -274,6 +267,7 @@ module Simulation =
 
         let sample (rng: Random) (Temperature minTemperature) (Temperature maxTemperature) =
             rng.NextDouble() * (maxTemperature - minTemperature) + minTemperature
+            |> Math.Round
             |> Temperature
 
 
@@ -290,12 +284,19 @@ module Simulation =
     module Demand =
 
         let sample (rng: Random) (parameters: DemandModelParameters) (weather: Weather) =
-            let (Temperature t) = weather.Temperature
-            let lambda = parameters.ConditionOffsets.[weather.Condition] + 
-                         parameters.TemperatureModel.Intercept + 
-                         t * parameters.TemperatureModel.Coefficient
+            let (Temperature temperature) = weather.Temperature
+            let lambda = parameters.BaselineDemand + 
+                         temperature * parameters.TemperatureCoefficient +
+                         parameters.ConditionOffsets.[weather.Condition]
             let result = Poisson.Sample (rng, lambda)
             Demand (float result * 1.0<serving>)
+
+    module DayDemand =
+
+        let sample (rng: Random) (parameters: Map<Food, DemandModelParameters>) (weather: Weather) =
+
+            parameters
+            |> Map.map (fun food demandParameters -> Demand.sample rng demandParameters weather)
 
 
 module Training =
@@ -321,7 +322,7 @@ module Training =
                 .Append(context.Transforms.Categorical.OneHotEncoding("Condition"))
                 .Append(context.Transforms.NormalizeMeanVariance("Temperature"))
                 .Append(context.Transforms.Concatenate("Features", "Condition", "Temperature"))
-                .Append(context.Regression.Trainers.LbfgsPoissonRegression())
+                .Append(context.Regression.Trainers.Sdca())
         
         let model = partitions.TrainSet |> pipeline.Fit
         let metrics = partitions.TestSet |> model.Transform |> context.Regression.Evaluate
@@ -491,28 +492,29 @@ open Spectre.Console
 
 // Parameters for generating samples data
 let burgerParameters = {
-    ConditionOffsets = [ Sunny, -30.0; Cloudy, 0.0; Rainy, 30.0 ] |> Map
-    TemperatureModel = {
-         Intercept = 337.5
-         Coefficient = 3.5
-     }
+    BaselineDemand = 337.5
+    TemperatureCoefficient = 3.5
+    ConditionOffsets = Map [ Sunny, -30.0; Cloudy, 0.0; Rainy, 30.0 ]
 }
 
 let pizzaParameters = {
-    ConditionOffsets = [ Sunny, 0.0; Cloudy, 80.0; Rainy, -80.0 ] |> Map
-    TemperatureModel = {
-         Intercept = 690.0
-         Coefficient = 2.8
-     }
+    BaselineDemand = 690.0
+    TemperatureCoefficient = 2.8
+    ConditionOffsets = Map [ Sunny, 0.0; Cloudy, 80.0; Rainy, -80.0 ]
 }
 
 let tacoParameters = {
-    ConditionOffsets = [ Sunny, 40.0; Cloudy, -40.0; Rainy, 0.0 ] |> Map
-    TemperatureModel = {
-         Intercept = 400.0
-         Coefficient = 4.0
-     }
+    BaselineDemand = 400.0
+    TemperatureCoefficient = 4.0
+    ConditionOffsets = Map [ Sunny, 40.0; Cloudy, -40.0; Rainy, 0.0 ]
 }
+
+let foodParameters =
+    Map [
+        Burger, burgerParameters
+        Pizza, pizzaParameters
+        Taco, tacoParameters
+    ]
 
 // Setting the random number seed to perform reliable re-runs
 let rng = System.Random(123)
@@ -578,14 +580,14 @@ let pizzaPredictor = Scoring.createPredictor pizzaDemandModelFile
 let tacoPredictor = Scoring.createPredictor tacoDemandModelFile
 
 
-// Let's create some future data that we will evaluate our different techniques against
-let futureDays =
+let futureWeather =
     [1..numberFutureDays]
     |> List.map (fun d -> {| Day = Day d; Weather = Simulation.Weather.sample rng minTemp maxTemp |})
-    |> List.map (fun d -> {| d with FoodDemand =  Map [ Burger, Simulation.Demand.sample rng burgerParameters d.Weather
-                                                        Pizza, Simulation.Demand.sample rng pizzaParameters d.Weather
-                                                        Taco, Simulation.Demand.sample rng tacoParameters d.Weather
-                                                      ] |})
+
+// Let's create some future data that we will evaluate our different techniques against
+let futureDays =
+    futureWeather
+    |> List.map (fun d -> {| d with FoodDemand = Simulation.DayDemand.sample rng foodParameters d.Weather |})
 
 let revenuePerServing =
     Map [
