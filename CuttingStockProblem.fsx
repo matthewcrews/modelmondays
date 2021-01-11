@@ -135,18 +135,18 @@ match result with
 | Optimal solution ->
     let values = 
         Solution.getValues solution planDecs
-        |> Map.filter (fun plan quantity -> quantity > 0.0)
+        |> Map.filter (fun _ quantity -> quantity > 0.0)
 
-    let totalNumberOfCuts =
+    let totalNumberOfRolls =
         values
         |> Seq.sumBy (fun (KeyValue(_, count)) -> count)
 
     printfn "Quantity | Plan"
     for KeyValue(plan, quantity) in values do
-        printfn $"{quantity} | {plan}"
+        printfn $"%8.0f{quantity} | {plan}"
 
     printfn "=========================================="
-    printfn $"Total Number of Cuts: {totalNumberOfCuts}"
+    printfn $"Total Number of Rolls: {totalNumberOfRolls}"
     printfn "=========================================="
 
 | _ -> failwith "Unable to solve"
