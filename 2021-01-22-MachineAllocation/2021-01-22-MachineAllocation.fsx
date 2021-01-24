@@ -43,11 +43,11 @@ let jobTypeSets =
 
 // Setting up parameters for the example
 let rng = System.Random(123)
-let numberOfJobs = 100
-let numberOfMachines = 10
+let numberOfJobs = 20
+let numberOfMachines = 5
 let minJobLength = 1
 let maxJobLength = 3
-let maxWorkDifference = 5.0
+let maxWorkDifference = 1.0
 
 let randomJobLength (rng: System.Random) =
     rng.Next(minJobLength, maxJobLength)
@@ -94,7 +94,7 @@ open Flips.Types
 open Flips.SliceMap
 
 // A Map from JobType to the Jobs which are of that type
-let jobMap =
+let jobsForJobType =
     jobs
     |> List.groupBy (fun job -> job.JobType)
     |> Map
@@ -112,7 +112,7 @@ let assignments =
     DecisionBuilder "Assignment" {
         for machine in machines do
         for jobType in jobTypes do
-        for job in Map.tryFindDefault jobType [] jobMap ->
+        for job in Map.tryFindDefault jobType [] jobsForJobType ->
             Boolean
     } |> SMap3
 
@@ -159,7 +159,7 @@ let setupConstraints =
     ConstraintBuilder "SetupRequired" {
         for machine in machines do
         for jobType in jobTypes ->
-            sum (assignments.[machine, jobType, All]) <== float numberOfJobs * setups.[machine, jobType]
+            sum (assignments.[machine, jobType, All]) <== (float numberOfJobs) * setups.[machine, jobType]
     }
 
 // Each job must be assigned
