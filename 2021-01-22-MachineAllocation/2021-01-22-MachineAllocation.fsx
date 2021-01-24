@@ -11,7 +11,7 @@ type JobType =
 type Job = {
     Id : int
     JobType : JobType
-    Length : float
+    Size : float
 } with
     override this.ToString () =
         $"Job_{this.Id}"
@@ -45,12 +45,12 @@ let jobTypeSets =
 let rng = System.Random(123)
 let numberOfJobs = 20
 let numberOfMachines = 5
-let minJobLength = 1
-let maxJobLength = 3
+let minJobSize = 1
+let maxJobSize = 3
 let maxWorkDifference = 1.0
 
-let randomJobLength (rng: System.Random) =
-    rng.Next(minJobLength, maxJobLength)
+let randomJobSize (rng: System.Random) =
+    rng.Next(minJobSize, maxJobSize)
     |> float
 
 let randomJobType (rng: System.Random) =
@@ -59,13 +59,22 @@ let randomJobType (rng: System.Random) =
 let randomJobTypeSet (rng: System.Random) =
     jobTypeSets.[rng.Next(0, jobTypeSets.Length - 1)]
 
+module Map =
+
+    // Useful when you want to look up a key in a Map but you want it to provide
+    // a default value if the key is missing
+    let tryFindDefault (key: 'a) (defaultValue: 'v) (m: Map<'a, 'v>) =
+        match Map.tryFind key m with
+        | Some v -> v
+        | None -> defaultValue
+
 // Create some examples jobs
 let jobs =
     [1..numberOfJobs]
     |> List.map (fun id -> { 
         Id = id
         JobType = randomJobType rng
-        Length = randomJobLength rng 
+        Size = randomJobSize rng 
     })
 
 // Create some test machines
@@ -76,15 +85,6 @@ let machines =
         JobTypes = randomJobTypeSet rng
     })
 
-
-module Map =
-
-    // Useful when you want to look up a key in a Map but you want it to provide
-    // a default value if the key is missing
-    let tryFindDefault (key: 'a) (d: 'v) (m: Map<'a, 'v>) =
-        match Map.tryFind key m with
-        | Some v -> v
-        | None -> d
 
 
 #r "nuget: Flips"
@@ -100,9 +100,9 @@ let jobsForJobType =
     |> Map
 
 // A SliceMap where the key is a Job and the value is the length of the Job
-let jobLengths =
+let jobSizes =
     jobs
-    |> List.map (fun job -> job, job.Length)
+    |> List.map (fun job -> job, job.Size)
     |> SMap
 
 // The Decisions which represent assigning a Job to a Machine
@@ -116,11 +116,22 @@ let assignments =
             Boolean
     } |> SMap3
 
+// Each job must be assigned
+let jobsAssignmentConstraints =
+    ConstraintBuilder "JobAssignment" {
+        for job in jobs ->
+            sum assignments.[All, All, job] == 1.0
+    }
 
-// A Decision which is meant to represent the MinWork value across all Machines
-let minWork = Decision.createContinuous "MinWork" 0.0 infinity
 // A Decision which is meant to represent the MaxWork value across all Machines
 let maxWork = Decision.createContinuous "MaxWork" 0.0 infinity
+// A Decision which is meant to represent the MinWork value across all Machines
+let minWork = Decision.createContinuous "MinWork" 0.0 infinity
+
+// We constrain the difference between the most heavily loaded machine
+// and the least loaded
+let maxWorkDifferenceConstraint =
+    Constraint.create "MaxWorkDifferent" (maxWork - minWork <== maxWorkDifference)
 
 
 // The maxWork Decision must be greater or equal to all of the total work
@@ -128,7 +139,7 @@ let maxWork = Decision.createContinuous "MaxWork" 0.0 infinity
 let maxWorkConstraints =
     ConstraintBuilder "MaxWork" {
         for machine in machines ->
-            maxWork >== sum (assignments.[machine, All, All] .* jobLengths)
+            maxWork >== sum (assignments.[machine, All, All] .* jobSizes)
     }
 
 // The minWork Decision must be less or equal to all of the total work
@@ -136,13 +147,8 @@ let maxWorkConstraints =
 let minWorkConstraints =
     ConstraintBuilder "MinWork" {
         for machine in machines ->
-            minWork <== sum (assignments.[machine, All, All] .* jobLengths)
+            minWork <== sum (assignments.[machine, All, All] .* jobSizes)
     }
-
-// We constrain the difference between the most heavily loaded machine
-// and the least loaded
-let maxWorkDifferenceConstraint =
-    Constraint.create "MaxWorkDifferent" (maxWork - minWork <== maxWorkDifference)
 
 // A Decision which indicates whether we setup a given Machine for a 
 // JobType at any point
@@ -162,12 +168,6 @@ let setupConstraints =
             sum (assignments.[machine, jobType, All]) <== (float numberOfJobs) * setups.[machine, jobType]
     }
 
-// Each job must be assigned
-let jobsAssignmentConstraints =
-    ConstraintBuilder "JobAssignment" {
-        for job in jobs ->
-            sum assignments.[All, All, job] == 1.0
-    }
 
 // An expression which is the sum of the Setups that will need to be performed
 let numberSetupsExpression = sum setups
@@ -184,43 +184,39 @@ let model =
     |> Model.addConstraints jobsAssignmentConstraints
 
 // Give the solver plenty of time to find a solution
-let settings =
-    { Settings.basic with MaxDuration = 60_000L * 10L }
-
-// Timing to see how long it takes to solve
-let stopwatch = System.Diagnostics.Stopwatch()
-stopwatch.Start()
+let settings = { Settings.basic with MaxDuration = 60_000L }
 
 let result = Solver.solve settings model
-stopwatch.Stop()
-printfn $"Elapsed ms: {stopwatch.ElapsedMilliseconds}"
 
 match result with
 | Optimal solution ->
 
     // Get the assignments the solver is suggesting
-    let assignmentValues =
+    let machineAssignments =
         Solution.getValues solution assignments
         |> Map.filter (fun _ v -> v = 1.0)
         |> Map.toList
         |> List.map (fun ((machine, _, job), _) -> machine, job)
         |> List.sortBy (fun (machine, job) -> machine.Id, job.Id)
+        |> List.groupBy fst
+        |> List.map (fun (machine, jobs) -> machine, jobs |> List.map snd)
 
     printfn "Assignments:"
-    for (machine, job) in assignmentValues do
-        printfn $"Machine: {machine.Id} | Job: {job.Id}"
+    for (machine, jobs) in machineAssignments do
+        printfn $"Machine: {machine.Id}"
+        for job in jobs do
+            printfn $"\tJob: {job.Id}"
 
 
     // Calculate how much each machine is loaded
     let machineLoads =
-        assignmentValues
-        |> List.groupBy fst
-        |> List.map (fun (machine, grp) -> machine, grp |> List.map snd |> List.sumBy (fun x -> x.Length))
+        machineAssignments
+        |> List.map (fun (machine, jobs) -> machine, jobs |> List.sumBy (fun j -> j.Size))
 
     printfn ""
-    printfn "Machine Loads:"
+    printfn "Machine Loading:"
     for (machine, load) in machineLoads do
-        printfn $"Machine: {machine.Id} | Load: {load}"
+        printfn $"Machine: {machine.Id} | Total Load: {load}"
 
     // Find the min and max loads and calculate the difference
     let maxDifference =
