@@ -54,10 +54,10 @@ let randomJobSize (rng: System.Random) =
     |> float
 
 let randomJobType (rng: System.Random) =
-    jobTypes.[rng.Next(0, jobTypes.Length - 1)]
+    jobTypes.[rng.Next(0, jobTypes.Length)]
 
 let randomJobTypeSet (rng: System.Random) =
-    jobTypeSets.[rng.Next(0, jobTypeSets.Length - 1)]
+    jobTypeSets.[rng.Next(0, jobTypeSets.Length)]
 
 module Map =
 
