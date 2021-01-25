@@ -47,17 +47,17 @@ let numberOfJobs = 20
 let numberOfMachines = 5
 let minJobSize = 1
 let maxJobSize = 3
-let maxWorkDifference = 1.0
+let maxWorkDifference = 2.0
 
 let randomJobSize (rng: System.Random) =
     rng.Next(minJobSize, maxJobSize)
     |> float
 
 let randomJobType (rng: System.Random) =
-    jobTypes.[rng.Next(0, jobTypes.Length - 1)]
+    jobTypes.[rng.Next(0, jobTypes.Length)]
 
 let randomJobTypeSet (rng: System.Random) =
-    jobTypeSets.[rng.Next(0, jobTypeSets.Length - 1)]
+    jobTypeSets.[rng.Next(0, jobTypeSets.Length)]
 
 module Map =
 
@@ -111,7 +111,7 @@ let jobSizes =
 let assignments =
     DecisionBuilder "Assignment" {
         for machine in machines do
-        for jobType in jobTypes do
+        for jobType in machine.JobTypes do
         for job in Map.tryFindDefault jobType [] jobsForJobType ->
             Boolean
     } |> SMap3
