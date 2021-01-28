@@ -1,3 +1,4 @@
+open System.Collections.Generic
 fsi.ShowDeclarationValues <- false
 #r "nuget: Flips"
 
@@ -208,41 +209,36 @@ let settings = { Settings.basic with MaxDuration = 60_000L }
 
 let result = Solver.solve settings model
 
+let getMachineAssignments (solution: Solution) (assignments: SMap3<Machine, JobType, Job, Decision>) =
+    Solution.getValues solution assignments
+    |> Map.filter (fun _ v -> v = 1.0)
+    |> Map.toList
+    |> List.map (fun ((machine, _, job), _) -> machine, job)
+    |> List.sortBy (fun (machine, job) -> machine.Id, job.Id)
+    |> List.groupBy fst
+    |> List.map (fun (machine, jobs) -> machine, jobs |> List.map snd)
 
+let getMachineLoading jobAssignments =
+    jobAssignments
+    |> List.map (fun (machine, jobs) -> 
+        {| Machine = machine
+           TotalWork = 
+                jobs 
+                |> List.sumBy (fun j -> j.Size)
+           JobTypeDWork = 
+                jobs 
+                |> List.filter (fun j -> j.JobType = JobType.D) 
+                |> List.sumBy (fun j -> j.Size)
+        |})
 
 match result with
 | Optimal solution ->
 
-    // Get the assignments the solver is suggesting
-    let machineAssignments =
-        Solution.getValues solution assignments
-        |> Map.filter (fun _ v -> v = 1.0)
-        |> Map.toList
-        |> List.map (fun ((machine, _, job), _) -> machine, job)
-        |> List.sortBy (fun (machine, job) -> machine.Id, job.Id)
-        |> List.groupBy fst
-        |> List.map (fun (machine, jobs) -> machine, jobs |> List.map snd)
-
-    // //You can uncomment if you would like to see the individual job assignments
-    // printfn "Assignments:"
-    // for (machine, jobs) in machineAssignments do
-    //     printfn $"Machine: {machine.Id}"
-    //     for job in jobs do
-    //         printfn $"\tJob: {job.Id}"
+    // Get which jobs are assigned to each machine
+    let machineAssignments = getMachineAssignments solution assignments
 
     // Calculate the total work for each machine and the amount of job-type D
-    let machineLoads =
-        machineAssignments
-        |> List.map (fun (machine, jobs) -> 
-            {| Machine = machine
-               TotalWork = 
-                    jobs 
-                    |> List.sumBy (fun j -> j.Size)
-               JobTypeDWork = 
-                    jobs 
-                    |> List.filter (fun j -> j.JobType = JobType.D) 
-                    |> List.sumBy (fun j -> j.Size)
-            |})
+    let machineLoads = getMachineLoading machineAssignments
 
     printfn ""
     printfn "Machine Loading:"
