@@ -1,10 +1,12 @@
 open System.Collections.Generic
 fsi.ShowDeclarationValues <- false
 #r "nuget: Flips"
+#r "nuget: Spectre.Console"
 
 open Flips
 open Flips.Types
 open Flips.SliceMap
+open Spectre.Console
 
 
 module Types =
@@ -111,14 +113,18 @@ module Printer =
     module MachineAssignments =
 
         let private getMachineLoading (machineAssignment: MachineAssignment) =
-            {| Machine = machineAssignment.Machine
-               TotalWork = 
+            {|  
+                Machine = machineAssignment.Machine
+                TotalWork = 
                     machineAssignment.Jobs 
                     |> List.sumBy (fun j -> j.Size)
-               JobTypeDWork = 
+                JobTypeDWork = 
                     machineAssignment.Jobs 
                     |> List.filter (fun j -> j.JobType = JobType.D) 
                     |> List.sumBy (fun j -> j.Size)
+                DisinctJobTypeCount =
+                    machineAssignment.Jobs
+                    |> List.distinctBy (fun x -> x.JobType) |> List.length
             |}
 
             
@@ -129,12 +135,26 @@ module Printer =
                 machineAssignments
                 |> List.map getMachineLoading
 
+            let table = Table()
+            table.AddColumn("Machine") |> ignore
+            table.AddColumn("Total Work") |> ignore
+            table.AddColumn("Percent Type D Work") |> ignore
+            table.AddColumn("Distinct Job Count") |> ignore
+
             printfn ""
             printfn "Machine Loading:"
             for (m) in machineLoads do
-                // Print out the loading for each machine and the percent of job-type D work
-                printfn $"Machine: {m.Machine.Id} | Total Work: {m.TotalWork} | Type D Work %.2f{m.JobTypeDWork / m.TotalWork} %%"
-
+                let rowString = 
+                    [|
+                        $"{m.Machine.Id}"
+                        $"{m.TotalWork}"
+                        $"%.2f{m.JobTypeDWork / m.TotalWork}%%"
+                        $"{m.DisinctJobTypeCount}"
+                    |]
+                table.AddRow(rowString) |> ignore
+            
+            AnsiConsole.Render table
+            
             // Find the min and max loads and calculate the difference
             let maxDifference =
                 let loads = machineLoads |> List.map (fun m -> m.TotalWork)
@@ -164,7 +184,6 @@ module Scheduler =
     let schedule (maxWorkDifference: float) (maxJobTypeDPercent: float) (maxMachineCapacity: float) (jobs: Job list) (machines: Machine list) =
 
         let numberOfJobs = List.length jobs
-        // let numberOfMachines = List.length machines
 
         // A Map from JobType to the Jobs which are of that type
         let jobsForJobType =
@@ -255,20 +274,27 @@ module Scheduler =
                     sum (assignments.[machine, All, All] .* jobSizes) <== maxMachineCapacity
             }
 
-
         // An expression which is the sum of the Setups that will need to be performed
         let numberSetupsExpression = sum setups
+
         // We want to minimize the number of setups
         let minSetupsObjective = Objective.create "MinSetups" Minimize numberSetupsExpression
 
+        // Maximize Utilization expression
+        let maxUtilizationExpression = sum (assignments .* jobSizes) 
+
+        let maxUtilizationObjective =
+            Objective.create "MaxUtilization" Maximize maxUtilizationExpression
+
         // Compose the model
         let model =
-            Model.create minSetupsObjective
+            Model.create maxUtilizationObjective
+            |> Model.addObjective minSetupsObjective
             |> Model.addConstraints maxWorkConstraints
             |> Model.addConstraints minWorkConstraints
             |> Model.addConstraint maxWorkDifferenceConstraint
             |> Model.addConstraints setupConstraints
-            |> Model.addConstraints jobsAssignmentConstraints
+            // |> Model.addConstraints jobsAssignmentConstraints
             |> Model.addConstraints maxJobTypeDConstraints
             |> Model.addConstraints maxMachineCapacityConstraints
 
@@ -301,7 +327,7 @@ let maxWorkDifference = 2.0
 // Limit on the amount of JobType D on any given machine
 let maxJobTypeDPercentage = 0.50
 // Limit on how much work a machine can be assigned
-let maxMachineCapacity = 12.0
+let maxMachineCapacity = 34.0
 
 let scheduleResult = 
     Scheduler.schedule maxWorkDifference maxJobTypeDPercentage maxMachineCapacity jobs machines
